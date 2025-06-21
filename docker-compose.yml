@@ -16,8 +16,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts.json:/app/scripts.json
       - ./.env:/app/.env
-      # See README for instructions on setting up the reboot script on a Linux host
-      - /usr/local/bin/reboot-homedash.sh:/app/scripts/reboot.sh:ro
+      # This script should exist in your project directory. See README.md.
+      - ./reboot-homedash.sh:/app/scripts/reboot.sh:ro
     env_file:
       - ./.env
     ports:
