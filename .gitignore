@@ -1,0 +1,20 @@
+node_modules
+.env
+scripts.json
+.DS_Store
+.next
+certificates
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# homedash local overrides
+docker-compose.override.yml

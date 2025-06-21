@@ -1,0 +1,14 @@
+[
+  {
+    "id": "reboot-server",
+    "title": "Reboot Server",
+    "description": "Reboots the entire host machine safely.",
+    "command": "docker run --rm --privileged --pid=host justincormack/nsenter1 /sbin/reboot"
+  },
+  {
+    "id": "docker-cleanup",
+    "title": "Docker Cleanup",
+    "description": "Remove dangling images and unused containers.",
+    "command": "docker system prune -f"
+  }
+] 
