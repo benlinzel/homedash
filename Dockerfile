@@ -43,12 +43,13 @@ COPY --from=app-builder --chown=nextjs:docker /app/public ./public
 COPY --from=app-builder --chown=nextjs:docker /app/.next/standalone ./
 COPY --from=app-builder --chown=nextjs:docker /app/.next/static ./.next/static
 
-USER nextjs
-
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Now that the entrypoint can run as root, we switch to the non-root user
+# for the main application process for better security.
+USER nextjs
 
 EXPOSE 3000
 
