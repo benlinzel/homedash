@@ -3,7 +3,7 @@
     "id": "reboot-server",
     "title": "Reboot Server",
     "description": "Reboots the entire host machine safely.",
-    "command": "docker run --rm --privileged justinribeiro/nsenter-reboot"
+    "command": "docker run --rm --privileged --pid=host justincormack/nsenter1 reboot"
   },
   {
     "id": "docker-cleanup",
