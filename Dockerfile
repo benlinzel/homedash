@@ -28,29 +28,21 @@ ENV NODE_ENV=production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Accept build arguments for user and docker group IDs
-ARG UID=1001
+# Accept a build argument for the Docker GID
 ARG DOCKER_GID=999
 
-# 1. Install all necessary packages first
-RUN apk add --no-cache docker-cli sudo
+# Create a docker group with the specified GID and a non-root user
+RUN addgroup -S -g ${DOCKER_GID} docker
+RUN adduser -S -u 1001 -G docker nextjs
 
-# 2. Create the docker group and the nextjs user
-RUN addgroup -g ${DOCKER_GID} -S docker
-RUN adduser -u ${UID} -G docker -D -s /bin/sh nextjs
+# For debugging, it can be useful to have the docker cli
+RUN apk add --no-cache docker-cli
 
-# 3. Grant passwordless sudo to the nextjs user inside the container
-RUN echo "nextjs ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nextjs
+# Copy all application files from the builder stage
+COPY --from=app-builder --chown=nextjs:docker /app/public ./public
+COPY --from=app-builder --chown=nextjs:docker /app/.next/standalone ./
+COPY --from=app-builder --chown=nextjs:docker /app/.next/static ./.next/static
 
-# 4. Copy all application files from the builder stage
-COPY --from=app-builder /app/public ./public
-COPY --from=app-builder /app/.next/standalone ./
-COPY --from=app-builder /app/.next/static ./.next/static
-
-# 5. Set correct ownership for the entire application directory
-RUN chown -R nextjs:docker /app
-
-# 6. Switch to the non-root user
 USER nextjs
 
 EXPOSE 3000

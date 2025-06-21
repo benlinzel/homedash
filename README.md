@@ -95,91 +95,72 @@ Define a list of system scripts that can be executed from the UI.
 
 ---
 
-## Deployment
+## Environment Configuration
 
-It is recommended to use Docker Compose to orchestrate the application and any related services (e.g., a Cloudflared container for the tunnel).
+Create a `.env` file in the root of the project by copying the example:
 
-- Mount the Docker socket to the container.
-- Mount your `.env` and `scripts.json` files as volumes.
-- Use the provided `Dockerfile` and `docker-compose.yml` as a starting point.
+```bash
+cp .env.example .env
+```
 
-### Configuring the Docker Group ID (DOCKER_GID)
+You will need to set one variable: `DOCKER_GID`.
 
-To access the Docker socket securely, the user inside the container needs to match the Group ID (GID) of the `docker.sock` file on the host machine. You must set this GID in your `.env` file.
+### Finding the Docker Group ID (`DOCKER_GID`)
 
-**On Linux (Production):**
+The application needs to communicate with the Docker daemon on the host. To do this securely, the user inside the container needs to be part of the `docker` group, which requires knowing the group's ID (GID) on your host machine.
 
-1.  Find the GID of the `docker` group by running:
+- **On Linux (including Ubuntu):**
 
-    ```bash
-    grep docker /etc/group
-    ```
+  You can find the GID by running:
 
-    The output will look like `docker:x:999:`. The number is your GID.
+  ```bash
+  getent group docker | cut -d: -f3
+  ```
 
-2.  If the `docker` group does not exist, create it first:
+  This will output a number. If this command fails, you may need to create the docker group first (`sudo groupadd docker`) and add your user to it (`sudo usermod -aG docker $USER`).
 
-    ```bash
-    sudo groupadd docker
-    sudo chgrp docker /var/run/docker.sock
-    # Then run the grep command again to find the GID.
-    ```
+- **On macOS / Windows (with Docker Desktop):**
 
-3.  Create or edit your `.env` file and add the GID:
-    ```env
-    DOCKER_GID=999 # Replace 999 with your actual GID
-    ```
+  Docker Desktop uses a virtualized environment. The GID for the socket is typically `999` or another value set by Docker Desktop. A common default that works is `999`.
 
-**On macOS (Local Development):**
+Once you have the GID, update your `.env` file:
 
-1.  Find the GID of the `docker.sock` file by running:
+```dotenv
+# Example for a typical Linux system where 'docker' group has GID 999
+DOCKER_GID=999
+```
 
-    ```bash
-    stat -f '%g' /var/run/docker.sock
-    ```
+## Running the Application with Docker Compose
 
-    This will likely output `1`.
+Once your `.env` file is configured, you can build and run the application using Docker Compose:
 
-2.  Create a local `.env` file for development and add the GID:
-    ```env
-    DOCKER_GID=1
-    ```
+```bash
+docker-compose up -d --build
+```
 
-### Enabling Privileged Scripts (e.g., Reboot)
+The application will be available at `http://localhost:3000`.
 
-To safely execute scripts that require root privileges, you must create a script on the host machine and securely grant permission for it to be run.
+## Scripts
 
-**On Linux (Production Host):**
+This is used to execute pre-defined shell commands from the web UI.
 
-1.  **Create the Reboot Script:** Inside your `homedash` project directory on your server, create a file named `reboot-homedash.sh`.
-    ```bash
-    # Navigate to your project directory, e.g., cd /srv/homedash
-    nano reboot-homedash.sh
-    ```
-2.  Add the following content to the file:
-    ```bash
-    #!/bin/bash
-    /sbin/reboot
-    ```
-3.  Make the script executable: `chmod +x reboot-homedash.sh`
+The `reboot-server` script uses a secure, one-shot Docker container (`justinribeiro/nsenter-reboot`) to reboot the host machine. This is a safe and isolated way to perform a privileged operation without granting extra permissions to the main application container.
 
-4.  **Grant `sudo` Permission:** Create a `sudoers` rule that allows your user to run this specific script.
-    ```bash
-    # This command safely opens the sudoers editor
-    sudo visudo -f /etc/sudoers.d/homedash-reboot
-    ```
-    Add the following line, replacing `<your_user>` with your username and using the **full, absolute path** to the script on your host:
-    ```
-    <your_user> ALL=(ALL) NOPASSWD: /path/to/your/homedash/reboot-homedash.sh
-    ```
+Create a `scripts.json` file in the root of your project:
 
-**On macOS (Local Development):**
-
-For local development, you just need an empty placeholder file to satisfy Docker Compose.
-
-1.  **Create a Dummy Script:** Inside your `homedash` project directory on your Mac, create an empty file:
-    ```bash
-    touch reboot-homedash.sh
-    ```
-
-This setup ensures the project works seamlessly in both environments.
+```json
+[
+  {
+    "id": "reboot-server",
+    "title": "Reboot Server",
+    "description": "Reboots the entire host machine safely.",
+    "command": "sudo /sbin/reboot"
+  },
+  {
+    "id": "docker-cleanup",
+    "title": "Docker Cleanup",
+    "description": "Remove dangling images and unused containers.",
+    "command": "docker system prune -f"
+  }
+]
+```
