@@ -103,30 +103,16 @@ Create a `.env` file in the root of the project by copying the example:
 cp .env.example .env
 ```
 
-You will need to set one variable: `DOCKER_GID`.
+You will need to set two variables to ensure the container has the correct permissions to interact with the Docker socket and write to the `./data` volume on your host machine.
 
-### Finding the Docker Group ID (`DOCKER_GID`)
+- **`UID`**: The User ID of your user account on the host. Find this by running `id -u`.
+- **`DOCKER_GID`**: The Group ID of the `docker` group on the host. Find this by running `getent group docker | cut -d: -f3`.
 
-The application needs to communicate with the Docker daemon on the host. To do this securely, the user inside the container needs to be part of the `docker` group, which requires knowing the group's ID (GID) on your host machine.
-
-- **On Linux (including Ubuntu):**
-
-  You can find the GID by running:
-
-  ```bash
-  getent group docker | cut -d: -f3
-  ```
-
-  This will output a number. If this command fails, you may need to create the docker group first (`sudo groupadd docker`) and add your user to it (`sudo usermod -aG docker $USER`).
-
-- **On macOS / Windows (with Docker Desktop):**
-
-  Docker Desktop uses a virtualized environment. The GID for the socket is typically `999` or another value set by Docker Desktop. A common default that works is `999`.
-
-Once you have the GID, update your `.env` file:
+Your `.env` file should look like this:
 
 ```dotenv
-# Example for a typical Linux system where 'docker' group has GID 999
+# Example for a user with UID 1000 and a docker group with GID 999
+UID=1000
 DOCKER_GID=999
 ```
 

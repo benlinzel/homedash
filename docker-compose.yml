@@ -9,6 +9,8 @@ services:
         # Use the DOCKER_GID from the .env file, or default if not set.
         - DOCKER_GID=${DOCKER_GID:-999}
     container_name: homedash
+    # Run the container with the host's user and group ID to avoid permission issues.
+    user: "${UID:-1001}:${DOCKER_GID:-999}"
     restart: unless-stopped
     volumes:
       # This path works for both Docker Desktop (macOS/Windows) and Linux.
