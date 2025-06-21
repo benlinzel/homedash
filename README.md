@@ -147,42 +147,39 @@ To access the Docker socket securely, the user inside the container needs to mat
 
 ### Enabling Privileged Scripts (e.g., Reboot)
 
-To safely execute scripts that require root privileges from within the container, you must configure the host machine to grant specific, passwordless `sudo` access. **Never grant broad `sudo` access to the container user.**
+To safely execute scripts that require root privileges, you must create a script on the host machine and securely grant permission for it to be run.
 
-Here is the most secure method for enabling the reboot script:
+**On Linux (Production Host):**
 
-**1. Create a Dedicated Script on the Host**
+1.  **Create the Reboot Script:** Inside your `homedash` project directory on your server, create a file named `reboot-homedash.sh`.
+    ```bash
+    # Navigate to your project directory, e.g., cd /srv/homedash
+    nano reboot-homedash.sh
+    ```
+2.  Add the following content to the file:
+    ```bash
+    #!/bin/bash
+    /sbin/reboot
+    ```
+3.  Make the script executable: `chmod +x reboot-homedash.sh`
 
-This script isolates the `reboot` command, ensuring the container can only perform this single action.
+4.  **Grant `sudo` Permission:** Create a `sudoers` rule that allows your user to run this specific script.
+    ```bash
+    # This command safely opens the sudoers editor
+    sudo visudo -f /etc/sudoers.d/homedash-reboot
+    ```
+    Add the following line, replacing `<your_user>` with your username and using the **full, absolute path** to the script on your host:
+    ```
+    <your_user> ALL=(ALL) NOPASSWD: /path/to/your/homedash/reboot-homedash.sh
+    ```
 
-```bash
-# Create the script file
-sudo nano /usr/local/bin/reboot-homedash.sh
+**On macOS (Local Development):**
 
-# Add the following content
-#!/bin/bash
-/sbin/reboot
+For local development, you just need an empty placeholder file to satisfy Docker Compose.
 
-# Make the script executable
-sudo chmod +x /usr/local/bin/reboot-homedash.sh
-```
+1.  **Create a Dummy Script:** Inside your `homedash` project directory on your Mac, create an empty file:
+    ```bash
+    touch reboot-homedash.sh
+    ```
 
-**2. Grant Specific `sudo` Permission**
-
-This rule allows the user running the Docker daemon to execute _only_ the script we just created, without a password.
-
-```bash
-# Safely create the sudoers rule file
-sudo visudo -f /etc/sudoers.d/homedash-reboot
-```
-
-Add the following line to the file, replacing `<your_docker_user>` with the username that runs your containers (e.g., `ubuntu`):
-
-```
-<your_docker_user> ALL=(ALL) NOPASSWD: /usr/local/bin/reboot-homedash.sh
-```
-
-**3. Confirm Your Configuration**
-
-- The `docker-compose.yml` file maps the host script `reboot-homedash.sh` to `/app/scripts/reboot.sh` inside the container.
-- Your `scripts.json` file should have a command like `"command": "sudo /app/scripts/reboot.sh"` to execute the script.
+This setup ensures the project works seamlessly in both environments.
