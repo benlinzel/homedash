@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { OnlineStatusProvider } from "@/components/OnlineStatusProvider";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PWAAssets } from "@/components/PWAAssets";
-import { DockerEventListener } from "@/components/DockerEventListener";
+import "@/lib/docker-event-listener";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,7 +37,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <DockerEventListener />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

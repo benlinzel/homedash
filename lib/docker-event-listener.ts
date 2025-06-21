@@ -19,16 +19,16 @@ interface DockerEvent {
   TimeNano: number;
 }
 
-let isListenerRunning = false;
-
-export function startDockerEventListener() {
-  if (isListenerRunning) {
-    console.log("Docker event listener is already running.");
+function initialize() {
+  // Use a global variable to ensure this only runs once.
+  // @ts-ignore
+  if (global.dockerListenerStarted) {
     return;
   }
+  // @ts-ignore
+  global.dockerListenerStarted = true;
 
   console.log("Starting Docker event listener...");
-  isListenerRunning = true;
 
   const dockerProcess = spawn("docker", ["events", "--format", "{{json .}}"]);
 
@@ -62,8 +62,10 @@ export function startDockerEventListener() {
 
   dockerProcess.on("close", (code) => {
     console.log(`Docker event listener exited with code ${code}`);
-    isListenerRunning = false;
-    // Optional: auto-restart the listener
-    // setTimeout(startDockerEventListener, 5000);
+    // @ts-ignore
+    global.dockerListenerStarted = false;
   });
 }
+
+// Immediately attempt to initialize the listener when this module is imported.
+initialize();
