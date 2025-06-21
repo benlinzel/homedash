@@ -164,3 +164,14 @@ Create a `scripts.json` file in the root of your project:
   }
 ]
 ```
+
+## Running the Application
+
+It is recommended to use Docker Compose to orchestrate the application and any related services (e.g., a Cloudflared container for the tunnel).
+
+The `docker-compose.yml` file is configured to:
+
+- Build the application using the `Dockerfile`.
+- Mount the Docker socket so the app can communicate with the daemon.
+- Mount a local `./data` directory to `/app/data` for persistent storage (e.g., push subscriptions).
+- Mount your `.env` and `scripts.json` files as read-only volumes.

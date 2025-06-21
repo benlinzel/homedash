@@ -1,6 +1,12 @@
 "use server";
 
 import webpush, { type PushSubscription } from "web-push";
+import { promises as fs } from "fs";
+import path from "path";
+
+// Define a writable path for storing subscriptions inside the container.
+const DATA_DIR = path.join(process.cwd(), "data");
+const SUBSCRIPTIONS_PATH = path.join(DATA_DIR, "subscriptions.json");
 
 webpush.setVapidDetails(
   "mailto:test@example.com",
@@ -8,33 +14,59 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 );
 
-// This is a temporary in-memory store for subscriptions.
-// In a real application, you would store this in a database.
-const subscriptions: webpush.PushSubscription[] = [];
+async function getSubscriptions(): Promise<webpush.PushSubscription[]> {
+  try {
+    const data = await fs.readFile(SUBSCRIPTIONS_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch (error: any) {
+    if (error.code === "ENOENT") {
+      // File doesn't exist, so no subscriptions yet.
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function saveSubscriptions(subscriptions: webpush.PushSubscription[]) {
+  try {
+    // Ensure the data directory exists
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(
+      SUBSCRIPTIONS_PATH,
+      JSON.stringify(subscriptions, null, 2)
+    );
+  } catch (error) {
+    console.error("Error saving subscriptions file:", error);
+  }
+}
 
 export async function subscribeUser(sub: webpush.PushSubscription) {
+  const subscriptions = await getSubscriptions();
   console.log("Subscribing user:", sub.endpoint);
-  // Avoid adding duplicate subscriptions
   if (!subscriptions.find((s) => s.endpoint === sub.endpoint)) {
     subscriptions.push(sub);
+    await saveSubscriptions(subscriptions);
   }
   console.log(`Total subscriptions: ${subscriptions.length}`);
   return { success: true };
 }
 
 export async function unsubscribeUser(sub: webpush.PushSubscription) {
+  let subscriptions = await getSubscriptions();
   console.log("Unsubscribing user:", sub.endpoint);
-  const index = subscriptions.findIndex((s) => s.endpoint === sub.endpoint);
-  if (index > -1) {
-    subscriptions.splice(index, 1);
+  const initialLength = subscriptions.length;
+  subscriptions = subscriptions.filter((s) => s.endpoint !== sub.endpoint);
+  if (subscriptions.length < initialLength) {
+    await saveSubscriptions(subscriptions);
   }
   console.log(`Total subscriptions: ${subscriptions.length}`);
   return { success: true };
 }
 
 export async function sendNotification(message: string) {
+  const subscriptions = await getSubscriptions();
   if (subscriptions.length === 0) {
-    console.error("No subscriptions available to send notification to.");
+    console.log("No subscriptions available to send notification to.");
     return { success: false, error: "No subscriptions available" };
   }
 
@@ -47,10 +79,10 @@ export async function sendNotification(message: string) {
   });
 
   const sendPromises = subscriptions.map((sub) =>
-    webpush.sendNotification(sub, notificationPayload).catch((error) => {
-      // If a subscription is expired or invalid, remove it.
+    webpush.sendNotification(sub, notificationPayload).catch(async (error) => {
       if (error.statusCode === 410) {
-        unsubscribeUser(sub);
+        console.log("Subscription expired, removing:", sub.endpoint);
+        await unsubscribeUser(sub);
       } else {
         console.error("Error sending push notification:", error);
       }

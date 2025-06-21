@@ -17,6 +17,8 @@ services:
       - ./.env:/app/.env
       # This script should exist in your project directory. See README.md.
       - ./reboot-homedash.sh:/app/scripts/reboot.sh:ro
+      # Mount a local data directory for persistent storage (e.g., push subscriptions).
+      - ./data:/app/data
     env_file:
       - ./.env
     ports:

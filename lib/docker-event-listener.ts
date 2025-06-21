@@ -51,7 +51,16 @@ function initialize() {
           event.status === "restart")
       ) {
         const containerName = event.Actor.Attributes.name;
-        const message = `Container '${containerName}' ${event.status}.`;
+        let message = `Container '${containerName}' has ${event.status}.`;
+
+        if (event.status === "die") {
+          message = `Oh no! Container '${containerName}' just bit the dust.`;
+        } else if (event.status === "stop") {
+          message = `Container '${containerName}' has stopped.`;
+        } else if (event.status === "restart") {
+          message = `Container '${containerName}' is restarting.`;
+        }
+
         console.log(`LISTENER-MATCH: ${message}`);
 
         sendNotification(message).catch((err) =>
