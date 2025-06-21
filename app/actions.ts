@@ -8,46 +8,56 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 );
 
-// This is a temporary in-memory store for the subscription.
+// This is a temporary in-memory store for subscriptions.
 // In a real application, you would store this in a database.
-let subscription: PushSubscription | null = null;
-
 const subscriptions: webpush.PushSubscription[] = [];
 
-export async function subscribeUser(sub: {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}) {
-  subscription = sub as PushSubscription;
-  console.log("User subscribed:", sub);
+export async function subscribeUser(sub: webpush.PushSubscription) {
+  console.log("Subscribing user:", sub.endpoint);
+  // Avoid adding duplicate subscriptions
+  if (!subscriptions.find((s) => s.endpoint === sub.endpoint)) {
+    subscriptions.push(sub);
+  }
+  console.log(`Total subscriptions: ${subscriptions.length}`);
   return { success: true };
 }
 
-export async function unsubscribeUser() {
-  subscription = null;
-  console.log("User unsubscribed");
+export async function unsubscribeUser(sub: webpush.PushSubscription) {
+  console.log("Unsubscribing user:", sub.endpoint);
+  const index = subscriptions.findIndex((s) => s.endpoint === sub.endpoint);
+  if (index > -1) {
+    subscriptions.splice(index, 1);
+  }
+  console.log(`Total subscriptions: ${subscriptions.length}`);
   return { success: true };
 }
 
 export async function sendNotification(message: string) {
-  if (!subscription) {
-    console.error("No subscription available to send notification to.");
-    throw new Error("No subscription available");
+  if (subscriptions.length === 0) {
+    console.error("No subscriptions available to send notification to.");
+    return { success: false, error: "No subscriptions available" };
   }
 
-  try {
-    await webpush.sendNotification(
-      subscription,
-      JSON.stringify({
-        title: "HomeDash Notification",
-        body: message,
-        icon: "/icons/android-chrome-192x192.png",
-      })
-    );
-    console.log("Push notification sent successfully.");
-    return { success: true };
-  } catch (error) {
-    console.error("Error sending push notification:", error);
-    return { success: false, error: "Failed to send notification" };
-  }
+  console.log(`Sending notification to ${subscriptions.length} subscribers.`);
+
+  const notificationPayload = JSON.stringify({
+    title: "HomeDash Notification",
+    body: message,
+    icon: "/icons/android-chrome-192x192.png",
+  });
+
+  const sendPromises = subscriptions.map((sub) =>
+    webpush.sendNotification(sub, notificationPayload).catch((error) => {
+      // If a subscription is expired or invalid, remove it.
+      if (error.statusCode === 410) {
+        unsubscribeUser(sub);
+      } else {
+        console.error("Error sending push notification:", error);
+      }
+    })
+  );
+
+  await Promise.all(sendPromises);
+
+  return { success: true };
 }

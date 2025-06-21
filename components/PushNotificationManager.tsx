@@ -57,14 +57,7 @@ export default function PushNotificationManager() {
           applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
         });
 
-        const subAsJson = sub.toJSON();
-        await subscribeUser({
-          endpoint: subAsJson.endpoint!,
-          keys: {
-            p256dh: subAsJson.keys!.p256dh,
-            auth: subAsJson.keys!.auth,
-          },
-        });
+        await subscribeUser(sub.toJSON() as any);
         setSubscription(sub);
         setIsSubscribed(true);
       } catch (error) {
@@ -74,13 +67,15 @@ export default function PushNotificationManager() {
   };
 
   const unsubscribeFromPush = async () => {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return;
 
-    if (subscription) {
+    try {
       await subscription.unsubscribe();
-      await unsubscribeUser();
+      await unsubscribeUser(subscription.toJSON() as any);
+      setSubscription(null);
       setIsSubscribed(false);
+    } catch (error) {
+      console.error("Failed to unsubscribe:", error);
     }
   };
 
