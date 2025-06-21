@@ -41,12 +41,15 @@ RUN adduser -u ${UID} -G docker -D -s /bin/sh nextjs
 # For debugging, it can be useful to have the docker cli
 RUN apk add --no-cache docker-cli
 
-# Install sudo for privileged script execution
-RUN apk add --no-cache sudo
+# Install sudo and grant passwordless sudo to the nextjs user
+RUN apk add --no-cache sudo && echo "nextjs ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nextjs
 
 COPY --from=app-builder --chown=nextjs:docker /app/public ./public
 COPY --from=app-builder --chown=nextjs:docker /app/.next/standalone ./
 COPY --from=app-builder --chown=nextjs:docker /app/.next/static ./.next/static
+
+# Change ownership of the app directory to the nextjs user
+RUN chown -R nextjs:docker /app
 
 USER nextjs
 
