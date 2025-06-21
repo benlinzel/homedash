@@ -32,6 +32,10 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ARG UID=1001
 ARG DOCKER_GID=999
 
+# Delete the default 'node' user which often conflicts with host UIDs like 1000.
+# This prevents a UID collision during the 'adduser' command.
+RUN deluser --remove-home node || echo "node user did not exist"
+
 # Create the docker group first, then the user with the specified UID
 RUN addgroup -S -g ${DOCKER_GID} docker
 RUN adduser -S -u ${UID} -G docker nextjs
