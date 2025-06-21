@@ -32,25 +32,25 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ARG UID=1001
 ARG DOCKER_GID=999
 
-# 1. Create a `docker` group with the GID of the host's Docker socket
-RUN addgroup -g ${DOCKER_GID} -S docker
+# 1. Install all necessary packages first
+RUN apk add --no-cache docker-cli sudo
 
-# 2. Create the `nextjs` user, setting its UID and primary group to `docker`
+# 2. Create the docker group and the nextjs user
+RUN addgroup -g ${DOCKER_GID} -S docker
 RUN adduser -u ${UID} -G docker -D -s /bin/sh nextjs
 
-# For debugging, it can be useful to have the docker cli
-RUN apk add --no-cache docker-cli
+# 3. Grant passwordless sudo to the nextjs user inside the container
+RUN echo "nextjs ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nextjs
 
-# Install sudo and grant passwordless sudo to the nextjs user
-RUN apk add --no-cache sudo && echo "nextjs ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nextjs
+# 4. Copy all application files from the builder stage
+COPY --from=app-builder /app/public ./public
+COPY --from=app-builder /app/.next/standalone ./
+COPY --from=app-builder /app/.next/static ./.next/static
 
-COPY --from=app-builder --chown=nextjs:docker /app/public ./public
-COPY --from=app-builder --chown=nextjs:docker /app/.next/standalone ./
-COPY --from=app-builder --chown=nextjs:docker /app/.next/static ./.next/static
-
-# Change ownership of the app directory to the nextjs user
+# 5. Set correct ownership for the entire application directory
 RUN chown -R nextjs:docker /app
 
+# 6. Switch to the non-root user
 USER nextjs
 
 EXPOSE 3000
