@@ -43,6 +43,9 @@ RUN if ! getent group ${DOCKER_GID}; then addgroup --gid ${DOCKER_GID} docker; f
 # For debugging, it can be useful to have the docker cli
 RUN apk add --no-cache docker-cli
 
+# Install sudo for privileged script execution
+RUN apk add --no-cache sudo
+
 COPY --from=app-builder --chown=nextjs:nodejs /app/public ./public
 # Copy standalone output
 COPY --from=app-builder --chown=nextjs:nodejs /app/.next/standalone ./
