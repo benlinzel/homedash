@@ -102,3 +102,87 @@ It is recommended to use Docker Compose to orchestrate the application and any r
 - Mount the Docker socket to the container.
 - Mount your `.env` and `scripts.json` files as volumes.
 - Use the provided `Dockerfile` and `docker-compose.yml` as a starting point.
+
+### Configuring the Docker Group ID (DOCKER_GID)
+
+To access the Docker socket securely, the user inside the container needs to match the Group ID (GID) of the `docker.sock` file on the host machine. You must set this GID in your `.env` file.
+
+**On Linux (Production):**
+
+1.  Find the GID of the `docker` group by running:
+
+    ```bash
+    grep docker /etc/group
+    ```
+
+    The output will look like `docker:x:999:`. The number is your GID.
+
+2.  If the `docker` group does not exist, create it first:
+
+    ```bash
+    sudo groupadd docker
+    sudo chgrp docker /var/run/docker.sock
+    # Then run the grep command again to find the GID.
+    ```
+
+3.  Create or edit your `.env` file and add the GID:
+    ```env
+    DOCKER_GID=999 # Replace 999 with your actual GID
+    ```
+
+**On macOS (Local Development):**
+
+1.  Find the GID of the `docker.sock` file by running:
+
+    ```bash
+    stat -f '%g' /var/run/docker.sock
+    ```
+
+    This will likely output `1`.
+
+2.  Create a local `.env` file for development and add the GID:
+    ```env
+    DOCKER_GID=1
+    ```
+
+### Enabling Privileged Scripts (e.g., Reboot)
+
+To safely execute scripts that require root privileges from within the container, you must configure the host machine to grant specific, passwordless `sudo` access. **Never grant broad `sudo` access to the container user.**
+
+Here is the most secure method for enabling the reboot script:
+
+**1. Create a Dedicated Script on the Host**
+
+This script isolates the `reboot` command, ensuring the container can only perform this single action.
+
+```bash
+# Create the script file
+sudo nano /usr/local/bin/reboot-homedash.sh
+
+# Add the following content
+#!/bin/bash
+/sbin/reboot
+
+# Make the script executable
+sudo chmod +x /usr/local/bin/reboot-homedash.sh
+```
+
+**2. Grant Specific `sudo` Permission**
+
+This rule allows the user running the Docker daemon to execute _only_ the script we just created, without a password.
+
+```bash
+# Safely create the sudoers rule file
+sudo visudo -f /etc/sudoers.d/homedash-reboot
+```
+
+Add the following line to the file, replacing `<your_docker_user>` with the username that runs your containers (e.g., `ubuntu`):
+
+```
+<your_docker_user> ALL=(ALL) NOPASSWD: /usr/local/bin/reboot-homedash.sh
+```
+
+**3. Confirm Your Configuration**
+
+- The `docker-compose.yml` file maps the host script `reboot-homedash.sh` to `/app/scripts/reboot.sh` inside the container.
+- Your `scripts.json` file should have a command like `"command": "sudo /app/scripts/reboot.sh"` to execute the script.

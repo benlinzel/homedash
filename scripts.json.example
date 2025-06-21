@@ -3,12 +3,12 @@
     "id": "reboot-server",
     "title": "Reboot Server",
     "description": "Reboots the entire host machine safely.",
-    "script": "/scripts/reboot.sh"
+    "command": "sudo /app/scripts/reboot.sh"
   },
   {
     "id": "docker-cleanup",
     "title": "Docker Cleanup",
     "description": "Remove dangling images and unused containers.",
-    "script": "docker system prune -f"
+    "command": "docker system prune -f"
   }
 ] 

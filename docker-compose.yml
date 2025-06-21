@@ -1,15 +1,23 @@
 version: '3.8'
 
 services:
-  app:
+  homedash:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Use the DOCKER_GID from the .env file, or default to 999 if not set.
+        # This makes the build work on macOS without a .env file.
+        - DOCKER_GID=${DOCKER_GID:-999}
     container_name: homedash
     restart: unless-stopped
     volumes:
-      - "${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
+      # This path works for both Docker Desktop (macOS/Windows) and Linux.
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts.json:/app/scripts.json
+      - ./.env:/app/.env
+      # See README for instructions on setting up the reboot script on a Linux host
+      - /usr/local/bin/reboot-homedash.sh:/app/scripts/reboot.sh:ro
     env_file:
       - ./.env
     ports:
@@ -21,9 +29,9 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN} --url http://homedash:3000
     depends_on:
-      - app
+      - homedash
     networks:
       - homedash-net
 
