@@ -1,0 +1,6 @@
+node_modules
+.env
+scripts.json
+.DS_Store
+.next
+certificates
