@@ -67,7 +67,7 @@ Define a list of system scripts that can be executed from the UI.
     "id": "reboot-server",
     "title": "Reboot Server",
     "description": "Reboots the entire host machine safely.",
-    "command": "sudo /sbin/reboot"
+    "command": "docker run --rm --privileged --pid=host justincormack/nsenter1 /sbin/reboot"
   },
   {
     "id": "docker-cleanup",
@@ -154,7 +154,7 @@ Create a `scripts.json` file in the root of your project:
     "id": "reboot-server",
     "title": "Reboot Server",
     "description": "Reboots the entire host machine safely.",
-    "command": "sudo /sbin/reboot"
+    "command": "docker run --rm --privileged --pid=host justincormack/nsenter1 /sbin/reboot"
   },
   {
     "id": "docker-cleanup",
