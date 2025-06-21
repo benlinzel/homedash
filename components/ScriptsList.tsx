@@ -8,6 +8,7 @@ interface Script {
   id: string;
   title: string;
   description: string;
+  command: string;
 }
 
 // To track the state of each button individually

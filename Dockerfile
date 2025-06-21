@@ -28,16 +28,16 @@ ENV NODE_ENV=production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Add a build argument for the Docker GID.
-# This allows us to match the host's Docker group ID for socket permissions.
+# Accept build arguments for user, group, and docker group IDs
+ARG UID=1001
+ARG GID=1001
 ARG DOCKER_GID=999
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create a group and user with specified IDs
+RUN addgroup --system -g ${GID} nextjs
+RUN adduser --system -u ${UID} -G nextjs nextjs
 
-# Create a docker group with the GID passed in at build time
-# and add the nextjs user to it. If the GID is already in use,
-# just add the nextjs user to the existing group.
+# Add user to the docker group to grant socket permissions
 RUN if ! getent group ${DOCKER_GID}; then addgroup --gid ${DOCKER_GID} docker; fi && addgroup nextjs $(getent group ${DOCKER_GID} | cut -d: -f1)
 
 # For debugging, it can be useful to have the docker cli

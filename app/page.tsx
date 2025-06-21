@@ -1,6 +1,7 @@
+import DockerContainersList from "@/components/DockerContainersList";
 import ScriptsList from "@/components/ScriptsList";
 import SystemStats from "@/components/SystemStats";
-import { PWAProvider } from "@/components/PWAProvider";
+import PWAProvider from "@/components/PWAProvider";
 
 export default function Home() {
   return (

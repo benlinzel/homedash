@@ -12,9 +12,9 @@ export async function POST(request: any, { params }: any) {
     const scriptsConfig = JSON.parse(data);
     const script = scriptsConfig.find((s: any) => s.id === id);
 
-    if (!script) {
+    if (!script || !script.command) {
       return NextResponse.json(
-        { message: "Script not found" },
+        { message: "Script not found or has no command" },
         { status: 404 }
       );
     }

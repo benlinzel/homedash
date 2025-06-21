@@ -9,8 +9,11 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export function PushNotificationManager() {
+export default function PushNotificationManager() {
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscription, setSubscription] = useState<PushSubscription | null>(
+    null
+  );
   const [notificationMessage, setNotificationMessage] =
     useState("Test Message");
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +32,7 @@ export function PushNotificationManager() {
           const subscription = await registration.pushManager.getSubscription();
           if (subscription) {
             setIsSubscribed(true);
+            setSubscription(subscription);
           }
         } catch (error) {
           console.error("Error during push notification setup:", error);
@@ -44,20 +48,16 @@ export function PushNotificationManager() {
     setupPushNotifications();
   }, []);
 
-  const handleSubscribe = async () => {
+  const subscribeToPush = async () => {
     if ("serviceWorker" in navigator && "PushManager" in window) {
       try {
-        const registration = await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
+        const swRegistration = await navigator.serviceWorker.ready;
+        const sub = await swRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        });
 
-        if (!subscription) {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-          });
-        }
-
-        const subAsJson = subscription.toJSON();
+        const subAsJson = sub.toJSON();
         await subscribeUser({
           endpoint: subAsJson.endpoint!,
           keys: {
@@ -65,17 +65,15 @@ export function PushNotificationManager() {
             auth: subAsJson.keys!.auth,
           },
         });
+        setSubscription(sub);
         setIsSubscribed(true);
       } catch (error) {
-        console.error("Error subscribing:", error);
-        alert(
-          "Failed to subscribe. Please ensure notifications are allowed and try again."
-        );
+        console.error("Failed to subscribe to push notifications:", error);
       }
     }
   };
 
-  const handleUnsubscribe = async () => {
+  const unsubscribeFromPush = async () => {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
 
@@ -106,7 +104,7 @@ export function PushNotificationManager() {
       {isSubscribed ? (
         <div className="space-y-4">
           <p>You are subscribed to push notifications.</p>
-          <Button onClick={handleUnsubscribe} variant="destructive">
+          <Button onClick={unsubscribeFromPush} variant="destructive">
             Unsubscribe
           </Button>
           <form
@@ -127,7 +125,7 @@ export function PushNotificationManager() {
       ) : (
         <div>
           <p>You are not subscribed. Subscribe to receive notifications.</p>
-          <Button onClick={handleSubscribe} className="mt-2">
+          <Button onClick={subscribeToPush} className="mt-2">
             Subscribe
           </Button>
         </div>

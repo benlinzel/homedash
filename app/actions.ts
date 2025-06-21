@@ -3,7 +3,7 @@
 import webpush, { type PushSubscription } from "web-push";
 
 webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_EMAIL!}`,
+  "mailto:test@example.com",
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 );
@@ -11,6 +11,8 @@ webpush.setVapidDetails(
 // This is a temporary in-memory store for the subscription.
 // In a real application, you would store this in a database.
 let subscription: PushSubscription | null = null;
+
+const subscriptions: webpush.PushSubscription[] = [];
 
 export async function subscribeUser(sub: {
   endpoint: string;

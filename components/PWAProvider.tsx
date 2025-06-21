@@ -1,9 +1,9 @@
 "use client";
 
-import { PushNotificationManager } from "./PushNotificationManager";
+import PushNotificationManager from "./PushNotificationManager";
 import { InstallPrompt } from "./InstallPrompt";
 
-export function PWAProvider() {
+export default function PWAProvider() {
   return (
     <>
       <PushNotificationManager />
