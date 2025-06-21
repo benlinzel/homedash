@@ -97,13 +97,9 @@ Define a list of system scripts that can be executed from the UI.
 
 ## Environment Configuration
 
-Create a `.env` file in the root of the project by copying the example:
+Create a `.env` file in the root of the project by copying the example. You can run `touch .env.example` if it doesn't exist.
 
-```bash
-cp .env.example .env
-```
-
-You will need to set two variables to ensure the container has the correct permissions to interact with the Docker socket and write to the `./data` volume on your host machine.
+Your `.env` file must contain two variables to ensure the container has the correct permissions to interact with the Docker socket and write to the `./data` volume on your host machine.
 
 - **`UID`**: The User ID of your user account on the host. Find this by running `id -u`.
 - **`DOCKER_GID`**: The Group ID of the `docker` group on the host. Find this by running `getent group docker | cut -d: -f3`.
@@ -116,9 +112,23 @@ UID=1000
 DOCKER_GID=999
 ```
 
-## Running the Application with Docker Compose
+## Initial Setup
 
-Once your `.env` file is configured, you can build and run the application using Docker Compose:
+Before running the application for the first time, you must create the data directory on your host and set the correct ownership. This ensures the container has permission to write persistent data (like push notification subscriptions).
+
+From the project's root directory on your host machine, run the following commands:
+
+```bash
+# 1. Create the data directory
+mkdir -p ./data
+
+# 2. Set the ownership to your current user and group
+sudo chown $(id -u):$(id -g) ./data
+```
+
+## Running the Application
+
+Once your `.env` file is configured and the data directory is set up, you can build and run the application using Docker Compose:
 
 ```bash
 docker-compose up -d --build
