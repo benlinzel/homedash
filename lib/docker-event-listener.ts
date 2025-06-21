@@ -19,25 +19,31 @@ interface DockerEvent {
   TimeNano: number;
 }
 
-let isListenerRunning = false;
-
-export function startDockerEventListener() {
-  if (isListenerRunning) {
-    console.log("Docker event listener is already running.");
+function initialize() {
+  // @ts-ignore
+  if (global.dockerListenerStarted) {
+    console.log("Docker event listener already loaded, not starting another.");
     return;
   }
+  // @ts-ignore
+  global.dockerListenerStarted = true;
 
-  console.log("Starting Docker event listener...");
-  isListenerRunning = true;
+  console.log("Attempting to start Docker event listener...");
 
   const dockerProcess = spawn("docker", ["events", "--format", "{{json .}}"]);
 
+  // This event fires if the process could not be spawned
+  dockerProcess.on("error", (err) => {
+    console.error("LISTENER-FATAL: Failed to start listener process.", err);
+  });
+
   dockerProcess.stdout.on("data", (data) => {
     const eventString = data.toString();
+    // This can be very noisy, but it's essential for debugging
+    // console.log(`LISTENER-DATA: Received raw data: ${eventString}`);
     try {
       const event: DockerEvent = JSON.parse(eventString);
 
-      // We only care about container events that indicate a potential issue.
       if (
         event.Type === "container" &&
         (event.status === "stop" ||
@@ -45,25 +51,38 @@ export function startDockerEventListener() {
           event.status === "restart")
       ) {
         const containerName = event.Actor.Attributes.name;
-        const message = `Container '${containerName}' ${event.status}.`;
-        console.log(`[Docker Event] ${message}`);
+        let message = `Container '${containerName}' has ${event.status}.`;
 
-        // Send a push notification
-        sendNotification(message).catch(console.error);
+        if (event.status === "die") {
+          message = `Oh no! Container '${containerName}' just bit the dust.`;
+        } else if (event.status === "stop") {
+          message = `Container '${containerName}' has stopped.`;
+        } else if (event.status === "restart") {
+          message = `Container '${containerName}' is restarting.`;
+        }
+
+        console.log(`LISTENER-MATCH: ${message}`);
+
+        sendNotification(message).catch((err) =>
+          console.error("LISTENER-NOTIFY-ERROR:", err)
+        );
       }
-    } catch (error) {
-      // sometimes docker events sends multiple jsons, so we ignore parse errors
+    } catch (error: any) {
+      // Docker sometimes sends multiple JSON objects in one data chunk.
+      // We can ignore these parse errors as the next chunk should be valid.
     }
   });
 
   dockerProcess.stderr.on("data", (data) => {
-    console.error(`Docker event listener error: ${data}`);
+    console.error(`LISTENER-STDERR: ${data}`);
   });
 
   dockerProcess.on("close", (code) => {
-    console.log(`Docker event listener exited with code ${code}`);
-    isListenerRunning = false;
-    // Optional: auto-restart the listener
-    // setTimeout(startDockerEventListener, 5000);
+    console.log(`LISTENER-CLOSE: Listener process exited with code ${code}`);
+    // @ts-ignore
+    global.dockerListenerStarted = false;
   });
 }
+
+// Immediately attempt to initialize the listener when this module is imported.
+initialize();
