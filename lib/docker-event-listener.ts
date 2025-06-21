@@ -20,24 +20,30 @@ interface DockerEvent {
 }
 
 function initialize() {
-  // Use a global variable to ensure this only runs once.
   // @ts-ignore
   if (global.dockerListenerStarted) {
+    console.log("Docker event listener already loaded, not starting another.");
     return;
   }
   // @ts-ignore
   global.dockerListenerStarted = true;
 
-  console.log("Starting Docker event listener...");
+  console.log("Attempting to start Docker event listener...");
 
   const dockerProcess = spawn("docker", ["events", "--format", "{{json .}}"]);
 
+  // This event fires if the process could not be spawned
+  dockerProcess.on("error", (err) => {
+    console.error("LISTENER-FATAL: Failed to start listener process.", err);
+  });
+
   dockerProcess.stdout.on("data", (data) => {
     const eventString = data.toString();
+    // This can be very noisy, but it's essential for debugging
+    // console.log(`LISTENER-DATA: Received raw data: ${eventString}`);
     try {
       const event: DockerEvent = JSON.parse(eventString);
 
-      // We only care about container events that indicate a potential issue.
       if (
         event.Type === "container" &&
         (event.status === "stop" ||
@@ -46,22 +52,24 @@ function initialize() {
       ) {
         const containerName = event.Actor.Attributes.name;
         const message = `Container '${containerName}' ${event.status}.`;
-        console.log(`[Docker Event] ${message}`);
+        console.log(`LISTENER-MATCH: ${message}`);
 
-        // Send a push notification
-        sendNotification(message).catch(console.error);
+        sendNotification(message).catch((err) =>
+          console.error("LISTENER-NOTIFY-ERROR:", err)
+        );
       }
-    } catch (error) {
-      // sometimes docker events sends multiple jsons, so we ignore parse errors
+    } catch (error: any) {
+      // Docker sometimes sends multiple JSON objects in one data chunk.
+      // We can ignore these parse errors as the next chunk should be valid.
     }
   });
 
   dockerProcess.stderr.on("data", (data) => {
-    console.error(`Docker event listener error: ${data}`);
+    console.error(`LISTENER-STDERR: ${data}`);
   });
 
   dockerProcess.on("close", (code) => {
-    console.log(`Docker event listener exited with code ${code}`);
+    console.log(`LISTENER-CLOSE: Listener process exited with code ${code}`);
     // @ts-ignore
     global.dockerListenerStarted = false;
   });
