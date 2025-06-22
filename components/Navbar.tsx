@@ -19,6 +19,7 @@ import { useOnlineStatus } from "./OnlineStatusProvider";
 const navLinks = [
   { href: "/", label: "Dashboard" },
   { href: "/docker", label: "Docker" },
+  { href: "/network", label: "Network" },
 ];
 
 export default function Navbar() {
