@@ -14,16 +14,34 @@ interface Device {
   hostname?: string;
 }
 
-async function getSubnet() {
+function getSubnetFromInterface(): string | null {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     const ifaceDetails = interfaces[name];
     if (ifaceDetails) {
       for (const iface of ifaceDetails) {
         if (iface.family === "IPv4" && !iface.internal) {
-          const parts = iface.address.split(".");
-          parts[3] = "0";
-          return `${parts.join(".")}/24`;
+          // Prefer iface.cidr, available in Node.js >= v15.7.0
+          if (iface.cidr) {
+            return iface.cidr;
+          }
+
+          // Fallback for older Node.js versions by calculating from netmask
+          const { address, netmask } = iface;
+          const cidr =
+            netmask
+              .split(".")
+              .map((octet) => parseInt(octet).toString(2).padStart(8, "0"))
+              .join("")
+              .split("1").length - 1;
+
+          const ipParts = address.split(".").map(Number);
+          const maskParts = netmask.split(".").map(Number);
+          const networkAddrParts = ipParts.map(
+            (part, i) => part & maskParts[i]
+          );
+
+          return `${networkAddrParts.join(".")}/${cidr}`;
         }
       }
     }
@@ -48,7 +66,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const subnet = await getSubnet();
+    const subnet = getSubnetFromInterface();
     if (!subnet) {
       return NextResponse.json(
         { message: "Could not determine local subnet." },
@@ -96,9 +114,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(results);
   } catch (error) {
-    console.error(error);
+    console.error("Error during network scan execution:", error);
     if (error instanceof Error) {
-      return NextResponse.json({ message: error.message }, { status: 500 });
+      const execError = error as { stdout?: string; stderr?: string };
+      return NextResponse.json(
+        {
+          message: error.message,
+          stdout: execError.stdout,
+          stderr: execError.stderr,
+        },
+        { status: 500 }
+      );
     }
     return NextResponse.json(
       { message: "An unknown error occurred" },
