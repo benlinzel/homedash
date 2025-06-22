@@ -86,6 +86,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (typeof scanScript.command !== "string") {
+      return NextResponse.json(
+        { message: "Scan command is not a string." },
+        { status: 500 }
+      );
+    }
+
     const command = scanScript.command.replace("{{SUBNET}}", subnet);
 
     const { stdout, stderr } = await execAsync(command);
@@ -118,20 +125,9 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof Error) {
       const execError = error as Error & {
-        code?: number | string;
         stdout?: string;
         stderr?: string;
       };
-
-      if (execError.code === 127 || execError.code === "ENOENT") {
-        return NextResponse.json(
-          {
-            message:
-              "The 'nmap' command was not found. Please install nmap on the server running Homedash and ensure it's in the system's PATH.",
-          },
-          { status: 500 }
-        );
-      }
 
       return NextResponse.json(
         {
