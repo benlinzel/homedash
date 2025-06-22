@@ -15,6 +15,6 @@
     "id": "lan-scan",
     "title": "Scan LAN for devices",
     "description": "Uses nmap to find devices on the local network.",
-    "command": "docker run --rm --net=host instrumentisto/nmap -sn -oG - {{SUBNET}}"
+    "command": "nmap -sn -oG - {{SUBNET}}"
   }
 ] 

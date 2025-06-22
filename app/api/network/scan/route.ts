@@ -115,17 +115,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(results);
   } catch (error) {
     console.error("Error during network scan execution:", error);
+
     if (error instanceof Error) {
-      const execError = error as { stdout?: string; stderr?: string };
+      const execError = error as Error & {
+        code?: number | string;
+        stdout?: string;
+        stderr?: string;
+      };
+
+      if (execError.code === 127 || execError.code === "ENOENT") {
+        return NextResponse.json(
+          {
+            message:
+              "The 'nmap' command was not found. Please install nmap on the server running Homedash and ensure it's in the system's PATH.",
+          },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
         {
-          message: error.message,
+          message: execError.message,
           stdout: execError.stdout,
           stderr: execError.stderr,
         },
         { status: 500 }
       );
     }
+
     return NextResponse.json(
       { message: "An unknown error occurred" },
       { status: 500 }
