@@ -10,6 +10,8 @@ let isScanRunning = false;
 interface Device {
   ip: string;
   hostname?: string;
+  mac?: string;
+  name?: string;
 }
 
 export async function GET() {
@@ -39,22 +41,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { subnet } = await req.json();
-
+  const subnet = process.env.DEFAULT_SUBNET;
   if (!subnet) {
     return NextResponse.json(
-      { message: "Subnet is required." },
-      { status: 400 }
+      { message: "DEFAULT_SUBNET is not set in the environment." },
+      { status: 500 }
     );
   }
 
-  // Basic validation for the subnet format.
-  // This is not exhaustive but prevents trivial errors.
   const subnetRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/;
   if (!subnetRegex.test(subnet)) {
     return NextResponse.json(
-      { message: "Invalid subnet format." },
-      { status: 400 }
+      { message: "Invalid subnet format in DEFAULT_SUBNET." },
+      { status: 500 }
     );
   }
 
@@ -68,7 +67,6 @@ export async function POST(req: NextRequest) {
     "--cap-add=NET_RAW",
     "--cap-add=NET_ADMIN",
     "instrumentisto/nmap",
-    "-n",
     "-sn",
     "-oG",
     "-",
@@ -119,22 +117,48 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      // Parse grepable output for hosts
-      const devices: Device[] = stdout
-        .split("\n")
-        .filter((line) => line.startsWith("Host:"))
-        .map((line) => {
-          // Example: Host: 10.0.0.1 ()    Status: Up
-          const match = line.match(/^Host:\s+(\S+)\s+\(([^)]*)\)/);
-          if (!match) return undefined;
+      // Parse both grepable and standard nmap output for hosts and MAC addresses
+      const lines = stdout.split("\n");
+      const devices: Device[] = [];
+      let lastDevice: Device | null = null;
+      for (const line of lines) {
+        if (line.startsWith("Host:")) {
+          // Grepable output: Host: 10.0.0.1 (hostname)    Status: Up
+          const match = line.match(/^Host:\s+(\S+)(?:\s+\(([^)]*)\))?/);
+          if (!match) continue;
           const ip = match[1];
           const hostname = match[2] && match[2] !== "" ? match[2] : undefined;
-          return hostname ? { ip, hostname } : { ip };
-        })
-        .filter(
-          (device): device is Device =>
-            !!device && typeof device.ip === "string"
-        );
+          lastDevice = { ip, hostname };
+          devices.push(lastDevice);
+        } else if (line.startsWith("Nmap scan report for ")) {
+          // Standard output: Nmap scan report for 10.0.0.159 or Nmap scan report for hostname (10.0.0.159)
+          const match = line.match(
+            /^Nmap scan report for (.+?)(?: \((\d+\.\d+\.\d+\.\d+)\))?$/
+          );
+          if (!match) continue;
+          let ip: string | undefined;
+          let hostname: string | undefined;
+          if (match[2]) {
+            hostname = match[1];
+            ip = match[2];
+          } else {
+            ip = match[1];
+          }
+          lastDevice = { ip, hostname };
+          devices.push(lastDevice);
+        } else if (line.includes("MAC Address:") && lastDevice) {
+          // MAC Address: AA:BB:CC:DD:EE:FF (DeviceName)
+          const macMatch = line.match(
+            /MAC Address: ([0-9A-Fa-f:]+)(?: \(([^)]+)\))?/
+          );
+          if (macMatch) {
+            lastDevice.mac = macMatch[1];
+            if (macMatch[2]) {
+              lastDevice.name = macMatch[2];
+            }
+          }
+        }
+      }
 
       const results = {
         timestamp: new Date().toISOString(),
