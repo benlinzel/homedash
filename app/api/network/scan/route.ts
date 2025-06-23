@@ -68,9 +68,10 @@ export async function POST(req: NextRequest) {
     "--cap-add=NET_RAW",
     "--cap-add=NET_ADMIN",
     "instrumentisto/nmap",
-    "-v",
     "-n",
     "-sn",
+    "-oG",
+    "-",
     subnet,
   ];
 
@@ -118,16 +119,22 @@ export async function POST(req: NextRequest) {
         return;
       }
 
+      // Parse grepable output for hosts
       const devices: Device[] = stdout
         .split("\n")
         .filter((line) => line.startsWith("Host:"))
         .map((line) => {
-          const parts = line.split(" ");
-          const ip = parts[1];
-          const hostname = parts[2]?.replace("(", "").replace(")", "");
-          return { ip, hostname: hostname || undefined };
+          // Example: Host: 10.0.0.1 ()    Status: Up
+          const match = line.match(/^Host:\s+(\S+)\s+\(([^)]*)\)/);
+          if (!match) return undefined;
+          const ip = match[1];
+          const hostname = match[2] && match[2] !== "" ? match[2] : undefined;
+          return hostname ? { ip, hostname } : { ip };
         })
-        .filter((device) => device.ip);
+        .filter(
+          (device): device is Device =>
+            !!device && typeof device.ip === "string"
+        );
 
       const results = {
         timestamp: new Date().toISOString(),
