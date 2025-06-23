@@ -2,19 +2,7 @@
   {
     "id": "reboot-server",
     "title": "Reboot Server",
-    "description": "Reboots the entire host machine safely.",
-    "command": "docker run --rm --privileged --pid=host justincormack/nsenter1 /sbin/reboot"
-  },
-  {
-    "id": "docker-cleanup",
-    "title": "Docker Cleanup",
-    "description": "Remove dangling images and unused containers.",
-    "command": "docker system prune -f"
-  },
-  {
-    "id": "lan-scan",
-    "title": "Scan LAN for devices",
-    "description": "Uses nmap to find devices on the local network.",
-    "command": "docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN instrumentisto/nmap -sn -oG - {{SUBNET}}"
+    "description": "Reboots the host server.",
+    "command": "sudo /sbin/reboot"
   }
 ] 
