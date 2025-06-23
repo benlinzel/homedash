@@ -67,9 +67,8 @@ export async function POST(req: NextRequest) {
     "--cap-add=NET_RAW",
     "--cap-add=NET_ADMIN",
     "instrumentisto/nmap",
+    "-n",
     "-sn",
-    "-oG",
-    "-",
     subnet,
   ];
 
