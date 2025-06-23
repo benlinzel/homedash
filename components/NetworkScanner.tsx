@@ -27,7 +27,7 @@ export default function NetworkScanner() {
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
-  const initialTimestampRef = useRef<string | undefined>();
+  const initialTimestampRef = useRef<string | undefined>(undefined);
 
   const fetchResults = async () => {
     if (!isLoading) setIsLoading(true);
