@@ -25,6 +25,9 @@ services:
       # Expose port on the host for local access/debugging.
       # Not required for Cloudflare Tunnel, which uses the internal Docker network.
       - "3000:3000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
       - homedash-net
 
@@ -32,10 +35,10 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - homedash
     networks:
