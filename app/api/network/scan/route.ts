@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   isScanRunning = true;
 
-  const command = `docker run --rm --net=host instrumentisto/nmap -n -sn ${subnet}`;
+  const command = `docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN instrumentisto/nmap -n -sn ${subnet}`;
 
   try {
     console.log(`Executing network scan with command: ${command}`);
