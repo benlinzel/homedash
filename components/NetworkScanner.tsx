@@ -13,7 +13,8 @@ import { useEffect, useState, useRef } from "react";
 
 interface Device {
   ip: string;
-  hostname?: string;
+  name?: string;
+  mac?: string;
 }
 
 interface ScanResults {
@@ -141,14 +142,16 @@ export default function NetworkScanner() {
           <TableHeader>
             <TableRow>
               <TableHead>IP Address</TableHead>
-              <TableHead>Hostname</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>MAC Address</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {results.devices?.map((device) => (
               <TableRow key={device.ip}>
                 <TableCell>{device.ip}</TableCell>
-                <TableCell>{device.hostname || "N/A"}</TableCell>
+                <TableCell>{device.name || "N/A"}</TableCell>
+                <TableCell>{device.mac || "N/A"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
