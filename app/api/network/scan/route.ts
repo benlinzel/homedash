@@ -16,12 +16,14 @@ interface Device {
 }
 
 export async function GET() {
+  const defaultSubnet = process.env.DEFAULT_SUBNET || "";
   try {
     const data = await fs.readFile(resultsFilePath, "utf-8");
-    return NextResponse.json(JSON.parse(data));
+    const results = JSON.parse(data);
+    return NextResponse.json({ ...results, defaultSubnet });
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return NextResponse.json({ devices: [] });
+      return NextResponse.json({ devices: [], defaultSubnet });
     }
     return NextResponse.json(
       { message: "Failed to read scan results" },
@@ -40,15 +42,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const { subnet } = await req.json();
+
+  if (!subnet) {
+    return NextResponse.json(
+      { message: "Subnet is required." },
+      { status: 400 }
+    );
+  }
+
+  // Basic validation for the subnet format.
+  // This is not exhaustive but prevents trivial errors.
+  const subnetRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/;
+  if (!subnetRegex.test(subnet)) {
+    return NextResponse.json(
+      { message: "Invalid subnet format." },
+      { status: 400 }
+    );
+  }
+
   isScanRunning = true;
 
-  // This command runs a temporary Docker container with nmap installed.
-  // It uses host networking to discover the local LAN subnet automatically.
-  // The `-n` flag is crucial to prevent DNS resolution, which can cause hangs.
-  // The command is wrapped in `sh -c` and the dollar signs are escaped to ensure that
-  // the subnet discovery `$(ip ...)` and awk's `$4` are executed *inside* the temporary container.
-  const command =
-    "docker run --rm --net=host --entrypoint sh instrumentisto/nmap -c \"nmap -n -sn -oG - \\$(ip -o -f inet addr show | awk '/scope global/ {print \\\\$4}' | head -n 1)\"";
+  const command = `docker run --rm --net=host instrumentisto/nmap -n -sn ${subnet}`;
 
   try {
     console.log(`Executing network scan with command: ${command}`);

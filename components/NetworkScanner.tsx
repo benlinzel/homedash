@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -20,9 +21,11 @@ interface Device {
 interface ScanResults {
   timestamp?: string;
   devices: Device[];
+  defaultSubnet?: string;
 }
 
 export default function NetworkScanner() {
+  const [subnet, setSubnet] = useState("");
   const [results, setResults] = useState<ScanResults>({ devices: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
@@ -34,8 +37,11 @@ export default function NetworkScanner() {
     try {
       const res = await fetch("/api/network/scan");
       if (res.ok) {
-        const data = await res.json();
+        const data: ScanResults = await res.json();
         setResults(data);
+        if (subnet === "" && data.defaultSubnet) {
+          setSubnet(data.defaultSubnet);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch scan results", error);
@@ -97,7 +103,13 @@ export default function NetworkScanner() {
     initialTimestampRef.current = results.timestamp;
 
     try {
-      const res = await fetch("/api/network/scan", { method: "POST" });
+      const res = await fetch("/api/network/scan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ subnet }),
+      });
       if (res.status === 202) {
         setIsPolling(true);
       } else if (res.status === 409) {
@@ -118,7 +130,14 @@ export default function NetworkScanner() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <div>
+        <div className="flex items-center gap-2">
+          <Input
+            value={subnet}
+            onChange={(e) => setSubnet(e.target.value)}
+            placeholder="e.g. 192.168.1.0/24"
+            className="w-48"
+            disabled={isScanning}
+          />
           <Button onClick={startScan} disabled={isScanning}>
             {isScanning ? "Scanning..." : "Scan Network"}
           </Button>
