@@ -1,10 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { spawn } from "child_process";
 
 const resultsFilePath = path.join(process.cwd(), "data", "lan-scan.json");
 
@@ -63,43 +60,88 @@ export async function POST(req: NextRequest) {
 
   isScanRunning = true;
 
-  const command = `docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN instrumentisto/nmap -n -sn ${subnet}`;
+  const command = "docker";
+  const args = [
+    "run",
+    "--rm",
+    "--net=host",
+    "--cap-add=NET_RAW",
+    "--cap-add=NET_ADMIN",
+    "instrumentisto/nmap",
+    "-v",
+    "-n",
+    "-sn",
+    subnet,
+  ];
 
   try {
-    console.log(`Executing network scan with command: ${command}`);
-    // Run scan in the background, do not await
-    execAsync(command)
-      .then(({ stdout, stderr }) => {
-        if (stderr) {
-          console.error(`nmap stderr: ${stderr}`);
-        }
-        const devices: Device[] = stdout
-          .split("\n")
-          .filter((line) => line.startsWith("Host:"))
-          .map((line) => {
-            const parts = line.split(" ");
-            const ip = parts[1];
-            const hostname = parts[2]?.replace("(", "").replace(")", "");
-            return { ip, hostname: hostname || undefined };
-          })
-          .filter((device) => device.ip);
+    console.log(
+      `Executing network scan with command: ${command} ${args.join(" ")}`
+    );
+    const nmapProcess = spawn(command, args);
 
-        const results = {
-          timestamp: new Date().toISOString(),
-          devices,
-        };
+    let stdout = "";
+    let stderr = "";
 
-        return fs.writeFile(resultsFilePath, JSON.stringify(results, null, 2));
-      })
-      .then(() => {
-        console.log("Network scan complete. Results saved.");
-      })
-      .catch((error) => {
-        console.error("Error during background network scan:", error);
-      })
-      .finally(() => {
-        isScanRunning = false;
-      });
+    nmapProcess.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    nmapProcess.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    nmapProcess.on("error", (err) => {
+      isScanRunning = false;
+      console.error("Failed to start nmap process:", err);
+    });
+
+    nmapProcess.on("close", (code) => {
+      console.log(`nmap process exited with code ${code}`);
+
+      console.log("--- nmap stdout ---");
+      console.log(stdout);
+      console.log("--- end nmap stdout ---");
+
+      if (stderr) {
+        console.error("--- nmap stderr ---");
+        console.error(stderr);
+        console.error("--- end nmap stderr ---");
+      }
+
+      isScanRunning = false;
+
+      if (code !== 0) {
+        console.error(
+          "nmap scan failed (exited with non-zero code). Not saving results."
+        );
+        return;
+      }
+
+      const devices: Device[] = stdout
+        .split("\n")
+        .filter((line) => line.startsWith("Host:"))
+        .map((line) => {
+          const parts = line.split(" ");
+          const ip = parts[1];
+          const hostname = parts[2]?.replace("(", "").replace(")", "");
+          return { ip, hostname: hostname || undefined };
+        })
+        .filter((device) => device.ip);
+
+      const results = {
+        timestamp: new Date().toISOString(),
+        devices,
+      };
+
+      fs.writeFile(resultsFilePath, JSON.stringify(results, null, 2))
+        .then(() => {
+          console.log("Network scan complete. Results saved.");
+        })
+        .catch((err) => {
+          console.error("Failed to write scan results file:", err);
+        });
+    });
 
     return NextResponse.json({ message: "Scan initiated" }, { status: 202 });
   } catch (error) {
