@@ -44,7 +44,11 @@ export async function POST(req: NextRequest) {
 
   // This command runs a temporary Docker container with nmap installed.
   // It uses host networking to discover the local LAN subnet automatically.
-  const command = `docker run --rm --net=host instrumentisto/nmap -sn -oG - $(ip -o -f inet addr show | awk '/scope global/ {print $4}' | head -n 1)`;
+  // The `-n` flag is crucial to prevent DNS resolution, which can cause hangs.
+  // The command is wrapped in `sh -c` to ensure that the subnet discovery
+  // `$(ip ...)` is executed *inside* the temporary container, not in the main app container.
+  const command =
+    "docker run --rm --net=host instrumentisto/nmap sh -c \"nmap -n -sn -oG - \\$(ip -o -f inet addr show | awk '/scope global/ {print \\$4}' | head -n 1)\"";
 
   try {
     console.log(`Executing network scan with command: ${command}`);
