@@ -9,6 +9,8 @@ const execAsync = promisify(exec);
 
 const resultsFilePath = path.join(process.cwd(), "lan-scan.json");
 
+let isScanRunning = false;
+
 interface Device {
   ip: string;
   hostname?: string;
@@ -65,6 +67,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (isScanRunning) {
+    return NextResponse.json(
+      { message: "A scan is already in progress." },
+      { status: 409 }
+    );
+  }
+
   try {
     const subnet = getSubnetFromInterface();
     if (!subnet) {
@@ -79,66 +88,57 @@ export async function POST(req: NextRequest) {
     const scripts = JSON.parse(scriptsData);
     const scanScript = scripts.find((s: any) => s.id === "lan-scan");
 
-    if (!scanScript || !scanScript.command) {
+    if (!scanScript || typeof scanScript.command !== "string") {
       return NextResponse.json(
-        { message: "LAN scan script not found in scripts.json" },
+        { message: "Scan command is invalid or not found." },
         { status: 404 }
       );
     }
 
-    if (typeof scanScript.command !== "string") {
-      return NextResponse.json(
-        { message: "Scan command is not a string." },
-        { status: 500 }
-      );
-    }
-
     const command = scanScript.command.replace("{{SUBNET}}", subnet);
+    isScanRunning = true;
 
-    const { stdout, stderr } = await execAsync(command);
+    // Run scan in the background, do not await
+    execAsync(command)
+      .then(({ stdout, stderr }) => {
+        if (stderr) {
+          console.error(`nmap stderr: ${stderr}`);
+        }
+        const devices: Device[] = stdout
+          .split("\n")
+          .filter((line) => line.startsWith("Host:"))
+          .map((line) => {
+            const parts = line.split(" ");
+            const ip = parts[1];
+            const hostname = parts[2]?.replace("(", "").replace(")", "");
+            return { ip, hostname: hostname || undefined };
+          })
+          .filter((device) => device.ip);
 
-    if (stderr) {
-      console.error(`nmap stderr: ${stderr}`);
-    }
+        const results = {
+          timestamp: new Date().toISOString(),
+          devices,
+        };
 
-    const devices: Device[] = stdout
-      .split("\n")
-      .filter((line) => line.startsWith("Host:"))
-      .map((line) => {
-        const parts = line.split(" ");
-        const ip = parts[1];
-        const hostname = parts[2]?.replace("(", "").replace(")", "");
-        return { ip, hostname: hostname || undefined };
+        return fs.writeFile(resultsFilePath, JSON.stringify(results, null, 2));
       })
-      .filter((device) => device.ip);
+      .then(() => {
+        console.log("Network scan complete. Results saved.");
+      })
+      .catch((error) => {
+        console.error("Error during background network scan:", error);
+      })
+      .finally(() => {
+        isScanRunning = false;
+      });
 
-    const results = {
-      timestamp: new Date().toISOString(),
-      devices,
-    };
-
-    await fs.writeFile(resultsFilePath, JSON.stringify(results, null, 2));
-
-    return NextResponse.json(results);
+    return NextResponse.json({ message: "Scan initiated" }, { status: 202 });
   } catch (error) {
-    console.error("Error during network scan execution:", error);
-
+    isScanRunning = false;
+    console.error("Error preparing network scan:", error);
     if (error instanceof Error) {
-      const execError = error as Error & {
-        stdout?: string;
-        stderr?: string;
-      };
-
-      return NextResponse.json(
-        {
-          message: execError.message,
-          stdout: execError.stdout,
-          stderr: execError.stderr,
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ message: error.message }, { status: 500 });
     }
-
     return NextResponse.json(
       { message: "An unknown error occurred" },
       { status: 500 }
