@@ -22,32 +22,17 @@ function getSubnetFromInterface(): string | null {
     const ifaceDetails = interfaces[name];
     if (ifaceDetails) {
       for (const iface of ifaceDetails) {
+        // We are looking for the primary, non-internal IPv4 interface
         if (iface.family === "IPv4" && !iface.internal) {
-          // Prefer iface.cidr, available in Node.js >= v15.7.0
+          // The 'cidr' property is the most reliable way to get the subnet
           if (iface.cidr) {
             return iface.cidr;
           }
-
-          // Fallback for older Node.js versions by calculating from netmask
-          const { address, netmask } = iface;
-          const cidr =
-            netmask
-              .split(".")
-              .map((octet) => parseInt(octet).toString(2).padStart(8, "0"))
-              .join("")
-              .split("1").length - 1;
-
-          const ipParts = address.split(".").map(Number);
-          const maskParts = netmask.split(".").map(Number);
-          const networkAddrParts = ipParts.map(
-            (part, i) => part & maskParts[i]
-          );
-
-          return `${networkAddrParts.join(".")}/${cidr}`;
         }
       }
     }
   }
+  console.warn("Could not determine local subnet from network interfaces.");
   return null;
 }
 
@@ -67,37 +52,49 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("Received request to start network scan.");
   if (isScanRunning) {
+    console.log("Scan is already running. Rejecting request.");
     return NextResponse.json(
       { message: "A scan is already in progress." },
       { status: 409 }
     );
   }
 
+  isScanRunning = true;
   try {
+    console.log("Determining subnet...");
     const subnet = getSubnetFromInterface();
     if (!subnet) {
+      console.error("Failed to determine subnet.");
+      isScanRunning = false;
       return NextResponse.json(
         { message: "Could not determine local subnet." },
         { status: 500 }
       );
     }
+    console.log(`Subnet determined: ${subnet}`);
 
-    const scriptsPath = path.join(process.cwd(), "scripts.json");
-    const scriptsData = await fs.readFile(scriptsPath, "utf-8");
-    const scripts = JSON.parse(scriptsData);
-    const scanScript = scripts.find((s: any) => s.id === "lan-scan");
+    let command: string;
+    try {
+      const scriptsPath = path.join(process.cwd(), "scripts.json");
+      const scriptsData = await fs.readFile(scriptsPath, "utf-8");
+      const scripts = JSON.parse(scriptsData);
+      const scanScript = scripts.find((s: any) => s.id === "lan-scan");
 
-    if (!scanScript || typeof scanScript.command !== "string") {
-      return NextResponse.json(
-        { message: "Scan command is invalid or not found." },
-        { status: 404 }
-      );
+      if (!scanScript || typeof scanScript.command !== "string") {
+        throw new Error(
+          "Scan command is invalid or not found in scripts.json."
+        );
+      }
+      command = scanScript.command.replace("{{SUBNET}}", subnet);
+    } catch (error) {
+      console.error("Failed to read or parse scan script:", error);
+      // Fallback to a default nmap command if scripts.json is problematic
+      command = `nmap -sn ${subnet}`;
     }
 
-    const command = scanScript.command.replace("{{SUBNET}}", subnet);
-    isScanRunning = true;
-
+    console.log(`Executing network scan with command: ${command}`);
     // Run scan in the background, do not await
     execAsync(command)
       .then(({ stdout, stderr }) => {
